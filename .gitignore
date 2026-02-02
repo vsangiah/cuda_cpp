@@ -1,0 +1,10 @@
+*.cpp*.ii
+*.cudafe1.*
+*.fatbin*
+*.o
+*.ptx
+*.*.cubin
+*.reg.c
+*.module_id
+
+
