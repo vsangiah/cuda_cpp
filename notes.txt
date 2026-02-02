@@ -1,0 +1,163 @@
+`
+
+
+CUDA Programming Massively Parallell Processors
+
+
+Chapter 1 and 2: History and graphics pipelines
+
+
+Chapter 3: Intro to data parallellism
+
+
+host - computer CPU
+device - the GPUs
+
+data parallelism - phenomemnon that allows arithmetic operations to be safely performed on diff parts of data structures in parallel
+
+task parallelism - phenomenon that allows tasks to be performed in parallel
+
+
+
+eg. of data parallelism - vector addition
+
+Cuda C/C++/FORTRAN program structure:
+contains host code + device code
+compilable by nvcc - separated host and device code
+host code - further compiled by the standard compilers
+device code ptx - becomes cuda kernels and is further compiled by runtime of nvcc 
+MCUDA allows to run CUDA kernel on CPU - not recommended
+
+### Execution around a launch of a kernel:
+1) Host CPU serial code execution
+2) when kernel is launched - large number of threads are generated and are collectively called as grid
+3) after all threads of kernel complete - grid terminates and host serial code execution continues until another kernel is launched
+
+
+eg. in vector addition: each element of result can be taken by one thread
+
+### CUDA programmers can assume few clock cycles are needed to generate and schedule threads
+CPU on the contray will take more clock cycles to to generate and schedule threads
+
+Some practical conventions:
+Variables with "h_*" are executed and worked on by host
+Variabels with "d_*" are rexecuted and worked on by the device
+
+### Thread: 
+1) a view - how processor eecutes program in a compute hardware
+2) consists of code, point of execution of code, values of variables and data structures
+3) thread is executed sequentially
+4) source debugging possible
+
+### Device global memory and data transfer:
+CPU and GPU have different memory spaces
+GPU has 4GB to 96GB DynamicRAM(/GlobalMemory/DeviceMemory), constant memory, registers and shared memory, application specific texture memory
+Firstly, for GPU computing, DRAM should be filled with required data, by copying from host to device.
+Lastly after computing is complete, result from DRAM should be copied back to host result and then all the corresponding DRAM memory should be freed up
+
+For CPU-GPU Fusion architectures, devices are integrated with hosts. they have unified memory, things are different. 
+
+Memory allocation/deallocation steps:
+cudaMalloc(ptrAddressAllocatedObj( this is a void** ),sizeOfObject) and 
+cudaFree(ptrAddressToBeFreed) - 
+these are memory management APIS called from host to allocate a piece of memory and free a piece of memory from the device's global memory
+
+Comparison: C Malloc will take size only and returns a pointer, CUDA's cudaMalloc writes to first arg: the pointer - this 2 param format helps in error diagnostics.
+
+Simple eg:
+float *d_A;
+int size = N*sizeof(float);
+cudaMalloc((void**)&d_A, size)
+
+..
+
+cudaFree(d_A)
+
+### How to handle errors in CUDA APIs:
+cudaError_t err = cudaMalloc((void**)&d_A, size)
+if (err != cudaSuccess) {
+printf(“%s in %s at line %d\n”, cudaGetErrorString( err), __FILE__, __LINE__);
+exit(EXIT_FAILURE);
+}
+
+### Caveats:
+1) do not dereference d_A in host code - this can cause exeptions/other runtime errors
+2) d_As are mostly used as arguments of kernel or cuda api 
+
+### Memory copying GPU<-->CPU:
+cudaMemcpy(ptrDst, ptrSrc, size, direction) -
+this api helps data transfer from/to CPU and GPU
+BUT this does not help in copying across different GOU devices
+direction: cudaMemcpyHostToDevice and cudaMemcpyDeviceToHost are symbolic constants
+
+
+### Kernel ND threadinh
+
+Kernel - specifies the code to be executed by all the threads - Single Program Multi Data programming style: meaning - the parallel processing units execute the same program on multiple parts of the data.
+
+### What really happens after launch of a kernel:
+Host launches a kernel
+CUDA RT generates a grid of threads - having a 2-level hierarchy: 
+
+Given nBlocks and nThreadsPerBlock from the host code, 
+
+1 Grid = (numOfBlocks) ThreadBlocks
+Each ThreadBlock is of same size
+ie.
+1 ThreadBlock = (numOfThreadsPerBlock) Threads
+
+numOfThreadsPerBlock <= 1024 but typically 256 used
+numOfThreadsPerBlock = 32q, q is natural number
+
+numOfThreadsPerBlock = 'blockDim.x' in CUDA C
+
+Each Thread has a unique id: 'threadIdx' value in CUDA C
+
+For 1 D vectors, the data index idx is calculated as:
+idx = blockIdx.x * blockDim.x + threadIdx.x
+
+
+with numOfBlocks = 5
+and  numOfThreadsPerBlock = 256
+Block 0 - threads 0 to 255
+Block 1 - threads 256 to 511
+Block 2 - threads 512 to 767
+Block 3 - threads 768 to 1023
+Block 4 - threads 1024 to 1279
+
+given i = blockIdx.x*blockDim.x + threadIdx.x
+
+blockDim.x and numOfBlocks are execution configuration parameters
+
+
+if our data size is 1200, 80 will be wasted
+
+
+Explanation of kernel definition:
+__global__ keyword makes it that host can call this function to be executed on device.
+__device__ - function declared is a CUDA device function that is to be called only from a kernel to be executed on the device.
+__host__ - function to be called from host to be executed on a host - DEFAULT
+
+if we do __device__ __host__ void someKernel(){} then there will be 2 versions of the  same functionality; the kernel can be called from host on host or deveice on device.
+
+All threads in the grid execute the same kernel. the only differentiator is threadIdx.x, blockIdx.x, blockDim.x
+
+Amount of calculation done by kernel << data getting processed.
+The overhead:
+1) allocating memory in device
+2) data transfer from host to device and device to host
+3) deallocation of the device arrays
+
+but these are one time operations. the benefit is that one addition is performed for 2 floating point numbers 
+
+the overhead can be amortized over multiple (same or different) kernel invocations by storing the data in global memory as much as needed
+
+
+## Example:
+ewmul.cpp
+
+
+
+
+
+
